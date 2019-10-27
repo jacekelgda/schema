@@ -1,21 +1,65 @@
 import "reflect-metadata";
-import {createConnection} from "typeorm";
-import {User} from "./entity/User";
+import { createConnection } from "typeorm";
+import * as restify from "restify";
+import { Item } from "./entity/Item";
 
-createConnection().then(async connection => {
+let connection
+const server = restify.createServer({
+    name: 'schema-api',
+})
 
-    console.log("Inserting a new user into the database...");
-    const user = new User();
-    user.firstName = "Timber";
-    user.lastName = "Saw";
-    user.age = 25;
-    await connection.manager.save(user);
-    console.log("Saved a new user with id: " + user.id);
+const createItems = async (req, res, next) => {
+    const hits = req.body.map(({ _source: {
+        itemNo,
+        itemName,
+        colorCode,
+        styleNo
+    } }) => ({
+        itemNo,
+        itemName,
+        colorCode,
+        styleNo
+    }))
 
-    console.log("Loading users from the database...");
-    const users = await connection.manager.find(User);
-    console.log("Loaded users: ", users);
+    for (let index = 0; index < hits.length; index++) {
+        const {
+            itemNo,
+            itemName,
+            colorCode,
+            styleNo
+        } = hits[index];
 
-    console.log("Here you can setup and run express/koa/any other framework.");
+        const item = new Item();
+        item.skuNumber = itemNo;
+        item.styleNumber = styleNo;
+        item.variantNumber = `${styleNo}_${colorCode}`
+        item.name = itemName
+        item.marketingName = itemName
+        item.chain = 'Urban'
+        await connection.manager.save(item);
+    }
+
+    res.send(201, 'ok')
+    next()
+}
+
+const getItems = async (req, res, next) => {
+    const items = await connection.manager.find(Item);
+    res.send(200, items)
+    next()
+}
+
+const setRoutes = (server) => {
+    server.post('/items', createItems)
+    server.get('/items', getItems)
+}
+
+createConnection().then(async conn => {
+    connection = conn
+    setRoutes(server)
+    server.use(restify.plugins.bodyParser())
+    server.listen(8081, () => {
+        console.log('API is ready to handle requests')
+    })
 
 }).catch(error => console.log(error));
