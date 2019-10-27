@@ -1,7 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, Unique } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
 @Entity()
-@Unique("UQ_NAMES", ["skuNumber", "variantNumber", "styleNumber"])
 export class Item {
 
     @PrimaryGeneratedColumn("uuid")

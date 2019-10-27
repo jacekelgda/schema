@@ -104,7 +104,7 @@ const search = async (req, res, next) => {
     }
 
     if (includeRelated) {
-
+        // curl -X POST localhost:8081/search -H "Content-Type: application/json" -d '{"type":"variant","includeRelated":"skus","filterBy":{"styleNumber":"7240985"}}' | jq
         items = await Promise.all(items.map(async item => {
             const related = await connection
                 .getRepository(Item)
