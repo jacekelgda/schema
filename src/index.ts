@@ -55,7 +55,7 @@ const getItems = async (req, res, next) => {
 }
 
 const search = async (req, res, next) => {
-    const { type, filterBy } = req.body
+    const { type, filterBy, includeRelated } = req.body
 
     const filterFlag = Object.keys(filterBy).pop()
     const filterByWhitelist = ['styleNumber']
@@ -102,6 +102,26 @@ const search = async (req, res, next) => {
         default:
             break;
     }
+
+    if (includeRelated) {
+
+        items = await Promise.all(items.map(async item => {
+            const related = await connection
+                .getRepository(Item)
+                .createQueryBuilder("item")
+                .having(`item.variantNumber = :variantNumber`, { variantNumber: item.item_variantNumber })
+                .select(["item.name", "item.styleNumber", "item.variantNumber", "item.skuNumber"])
+                .groupBy("item.skuNumber")
+                .addGroupBy("item.variantNumber")
+                .addGroupBy("item.styleNumber")
+                .addGroupBy("item.name")
+                .getRawMany()
+
+            item[includeRelated] = related
+            return item
+        }))
+    }
+
 
     res.send(201, { metadata: { count: items.length }, payload: items })
     next()
