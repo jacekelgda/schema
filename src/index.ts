@@ -9,37 +9,42 @@ const server = restify.createServer({
 })
 
 const createItems = async (req, res, next) => {
-    const hits = req.body.map(({ _source: {
-        itemNo,
-        itemName,
-        colorCode,
-        styleNo
-    } }) => ({
-        itemNo,
-        itemName,
-        colorCode,
-        styleNo
-    }))
-
-    for (let index = 0; index < hits.length; index++) {
-        const {
+    try {
+        const hits = req.body.map(({ _source: {
             itemNo,
             itemName,
             colorCode,
             styleNo
-        } = hits[index];
+        } }) => ({
+            itemNo,
+            itemName,
+            colorCode,
+            styleNo
+        }))
 
-        const item = new Item();
-        item.skuNumber = itemNo;
-        item.styleNumber = styleNo;
-        item.variantNumber = `${styleNo}_${colorCode}`
-        item.name = itemName
-        item.marketingName = itemName
-        item.chain = 'Urban'
-        await connection.manager.save(item);
+        for (let index = 0; index < hits.length; index++) {
+            const {
+                itemNo,
+                itemName,
+                colorCode,
+                styleNo
+            } = hits[index];
+
+            const item = new Item();
+            item.skuNumber = itemNo;
+            item.styleNumber = styleNo;
+            item.variantNumber = `${styleNo}_${colorCode}`
+            item.name = itemName
+            item.marketingName = itemName
+            item.chain = 'Urban'
+            await connection.manager.save(item);
+        }
+
+        res.send(201, 'ok')
+    } catch (e) {
+        console.log(e)
+        res.send(500, 'Error creating item')
     }
-
-    res.send(201, 'ok')
     next()
 }
 
