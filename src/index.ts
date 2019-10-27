@@ -54,9 +54,32 @@ const getItems = async (req, res, next) => {
     next()
 }
 
+const search = async (req, res, next) => {
+    const { type } = req.body
+    let items
+    switch (type) {
+        case 'style':
+            items = await connection
+                .getRepository(Item)
+                .createQueryBuilder("item")
+                .select(["item.name", "item.styleNumber"])
+                .groupBy(["item.styleNumber", "item.name"])
+                .getRawMany()
+
+            break;
+
+        default:
+            break;
+    }
+
+    res.send(201, items)
+    next()
+}
+
 const setRoutes = (server) => {
     server.post('/items', createItems)
     server.get('/items', getItems)
+    server.post('/search', search)
 }
 
 createConnection().then(async conn => {
