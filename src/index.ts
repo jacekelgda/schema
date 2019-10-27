@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { createConnection } from "typeorm";
+import { createConnection, FileLogger } from "typeorm";
 import * as restify from "restify";
 import { Item } from "./entity/Item";
 
@@ -55,15 +55,46 @@ const getItems = async (req, res, next) => {
 }
 
 const search = async (req, res, next) => {
-    const { type } = req.body
-    let items
+    const { type, filterBy } = req.body
+
+    const filterFlag = Object.keys(filterBy).pop()
+    const filterByWhitelist = ['styleNumber']
+
+    let items = await connection
+        .getRepository(Item)
+        .createQueryBuilder("item")
+
+    if (filterBy && filterByWhitelist.includes(filterFlag)) {
+        items = await items.having(`item.${filterFlag} = :${filterFlag}`, filterBy)
+    }
+
     switch (type) {
         case 'style':
-            items = await connection
-                .getRepository(Item)
-                .createQueryBuilder("item")
+            items = await items
                 .select(["item.name", "item.styleNumber"])
-                .groupBy(["item.styleNumber", "item.name"])
+                .groupBy("item.styleNumber")
+                .addGroupBy("item.name")
+                .getRawMany()
+
+            break;
+
+        case 'variant':
+            items = await items
+                .select(["item.name", "item.styleNumber", "item.variantNumber"])
+                .groupBy("item.variantNumber")
+                .addGroupBy("item.styleNumber")
+                .addGroupBy("item.name")
+                .getRawMany()
+
+            break;
+
+        case 'sku':
+            items = await items
+                .select(["item.name", "item.styleNumber", "item.variantNumber", "item.skuNumber"])
+                .groupBy("item.skuNumber")
+                .addGroupBy("item.variantNumber")
+                .addGroupBy("item.styleNumber")
+                .addGroupBy("item.name")
                 .getRawMany()
 
             break;
@@ -72,7 +103,7 @@ const search = async (req, res, next) => {
             break;
     }
 
-    res.send(201, items)
+    res.send(201, { metadata: { count: items.length }, payload: items })
     next()
 }
 
