@@ -4,6 +4,7 @@ import * as restify from "restify";
 import { Item } from "./entity/Item";
 import { Field } from "./entity/Field";
 import { FieldValue } from "./entity/FieldValue";
+import { Template } from "./entity/Template";
 
 let connection
 const server = restify.createServer({
@@ -49,106 +50,115 @@ const server = restify.createServer({
 // }
 
 const search = async (req, res, next) => {
-    const { type, filterBy, includeRelated } = req.body
+    const { type } = req.body
 
-    // const filterFlag = Object.keys(filterBy).pop()
-    // const filterByWhitelist = ['styleNumber']
 
-    let items = await connection
-        .getRepository(Item)
-        .createQueryBuilder("item")
+    const itemRepository = connection.getRepository(Item)
+    const items = await itemRepository
+        .find()
 
-    // if (filterBy && filterByWhitelist.includes(filterFlag)) {
-    //     items = await items.having(`item.${filterFlag} = :${filterFlag}`, filterBy)
-    // }
+    const formated = items.map(item => {
+        const fields = item.fieldValues.map(({ value, field }) => ({ name: field.name, value }))
+        const { fieldValues, ...sth } = item
+        return { ...sth, fields }
+    })
 
-    switch (type) {
-        case 'style':
-            items = await items
-                .select(["item.name", "item.styleNumber"])
-                .groupBy("item.styleNumber")
-                .addGroupBy("item.name")
-                .getRawMany()
+    res.send(201, formated)
+    next()
+}
 
-            break;
+const createItem = async (req, res, next) => {
+    try {
+        const template = await connection
+            .getRepository(Template)
+            .createQueryBuilder("template")
+            .where('template.name = :templateName', req.body)
+            .getOne()
+        if (!template) {
+            throw new Error('Template not found')
+        }
+        const { reference } = req.body
+        const item = new Item();
+        item.reference = reference
+        item.template = template
+        await connection.manager.save(item);
 
-        case 'variant':
-            items = await items
-                .select(["item.name", "item.styleNumber", "item.variantNumber"])
-                .groupBy("item.variantNumber")
-                .addGroupBy("item.styleNumber")
-                .addGroupBy("item.name")
-                .getRawMany()
-
-            break;
-
-        case 'sku':
-            items = await items
-                .select(["item.name", "item.styleNumber", "item.variantNumber", "item.skuNumber"])
-                .groupBy("item.skuNumber")
-                .addGroupBy("item.variantNumber")
-                .addGroupBy("item.styleNumber")
-                .addGroupBy("item.name")
-                .getRawMany()
-
-            break;
-
-        default:
-            break;
+        res.send(201, item)
+    } catch ({ message }) {
+        res.send(500, message)
     }
 
-    // if (includeRelated) {
-    //     // curl -X POST localhost:8081/search -H "Content-Type: application/json" -d '{"type":"variant","includeRelated":"skus","filterBy":{"styleNumber":"7240985"}}' | jq
-    //     items = await Promise.all(items.map(async item => {
-    //         const related = await connection
-    //             .getRepository(Item)
-    //             .createQueryBuilder("item")
-    //             .having(`item.variantNumber = :variantNumber`, { variantNumber: item.item_variantNumber })
-    //             .select(["item.name", "item.styleNumber", "item.variantNumber", "item.skuNumber"])
-    //             .groupBy("item.skuNumber")
-    //             .addGroupBy("item.variantNumber")
-    //             .addGroupBy("item.styleNumber")
-    //             .addGroupBy("item.name")
-    //             .getRawMany()
+    next()
+}
 
-    //         item[includeRelated] = related
-    //         return item
-    //     }))
-    // }
+const createTemplate = async (req, res, next) => {
+    try {
+        const { name } = req.body
+        const template = new Template();
+        template.name = name
+        await connection.manager.save(template);
+        res.send(201, template)
+    } catch ({ message }) {
+        res.send(500, message)
+    }
 
+    next()
+}
 
-    res.send(201, { metadata: { count: items.length }, payload: items })
+const createField = async (req, res, next) => {
+    try {
+        const { name } = req.body
+        const field = new Field();
+        field.name = name
+        await connection.manager.save(field);
+        res.send(201, field)
+    } catch ({ message }) {
+        res.send(500, message)
+    }
+
     next()
 }
 
 const fieldvalue = async (req, res, next) => {
-    const { value } = req.body
-    const item = await connection
-        .getRepository(Item)
-        .createQueryBuilder("item")
-        .where('item.reference = :itemReference', req.body)
-        .getOne()
+    try {
+        const { value } = req.body
+        const item = await connection
+            .getRepository(Item)
+            .createQueryBuilder("item")
+            .where('item.reference = :itemReference', req.body)
+            .getOne()
+        if (!item) {
+            throw new Error('Item not found')
+        }
 
-    const field = await connection
-        .getRepository(Field)
-        .createQueryBuilder("field")
-        .where('field.name = :fieldName', req.body)
-        .getOne()
+        const field = await connection
+            .getRepository(Field)
+            .createQueryBuilder("field")
+            .where('field.name = :fieldName', req.body)
+            .getOne()
+        if (!field) {
+            throw new Error('Field not found')
+        }
 
-    const fieldValue = new FieldValue()
-    fieldValue.field = field
-    fieldValue.item = item
-    fieldValue.value = value
-    await connection.manager.save(fieldValue);
-    res.send(200, 'ok')
+        const fieldValue = new FieldValue()
+        fieldValue.field = field
+        fieldValue.item = item
+        fieldValue.value = value
+        await connection.manager.save(fieldValue);
+
+        res.send(201, fieldValue)
+    } catch ({ message }) {
+        res.send(500, message)
+    }
     next()
 }
 
 const setRoutes = (server) => {
-    // server.post('/items', createItems)
-    // server.get('/items', getItems)
-    server.post('/search', search)
+    server.post('/item', createItem)
+    server.post('/template', createTemplate)
+    server.post('/field', createField)
     server.post('/fieldvalue', fieldvalue)
+    server.post('/search', search)
 }
 
 createConnection().then(async conn => {

@@ -16,4 +16,6 @@ export class FieldValue {
 
     @ManyToOne(type => Item, item => item.fieldValues)
     item: Item;
+
+    name: string
 }
