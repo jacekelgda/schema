@@ -2,14 +2,14 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 import { FieldValue } from './FieldValue';
 
 @Entity()
-export class Item {
+export class Field {
 
     @PrimaryGeneratedColumn("uuid")
     id: string;
 
     @Column()
-    reference: string;
+    name: string;
 
-    @OneToMany(type => FieldValue, fieldValue => fieldValue.item)
+    @OneToMany(type => FieldValue, fieldValue => fieldValue.field, { nullable: true })
     fieldValues: FieldValue[];
 }
