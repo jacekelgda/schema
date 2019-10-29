@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, Index } from "typeorm";
 import { FieldValue } from './FieldValue';
 import { Template } from './Template';
 
@@ -9,6 +9,7 @@ export class Field {
     id: string;
 
     @Column()
+    @Index({ unique: true })
     name: string;
 
     @OneToMany(type => FieldValue, fieldValue => fieldValue.field)

@@ -163,7 +163,7 @@ createConnection().then(async conn => {
     connection = conn
     setRoutes(server)
     server.use(restify.plugins.bodyParser())
-    server.listen(8081, () => {
+    server.listen(8081, async () => {
         console.log('API is ready to handle requests')
     })
 
