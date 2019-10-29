@@ -11,7 +11,7 @@ export class Item {
     @Column()
     reference: string;
 
-    @ManyToOne(type => Template, template => template.items)
+    @ManyToOne(type => Template, template => template.items, { eager: true })
     template: Template;
 
     @OneToMany(type => FieldValue, fieldValue => fieldValue.item, { eager: true })

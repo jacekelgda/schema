@@ -1,9 +1,10 @@
 import "reflect-metadata";
-import { createConnection, FileLogger } from "typeorm";
+
 import * as restify from "restify";
-import { Item } from "./entity/Item";
+import { createConnection } from "typeorm";
 import { Field } from "./entity/Field";
 import { FieldValue } from "./entity/FieldValue";
+import { Item } from "./entity/Item";
 import { Template } from "./entity/Template";
 
 let connection
@@ -11,59 +12,56 @@ const server = restify.createServer({
     name: 'schema-api',
 })
 
-// const createItems = async (req, res, next) => {
-//     try {
-//         const hits = req.body.map(({ _source: {
-//             itemNo,
-//             itemName,
-//             colorCode,
-//             styleNo,
-//             subscriberId
-//         } }) => ({
-//             itemNo,
-//             itemName,
-//             colorCode,
-//             styleNo,
-//             subscriberId
-//         }))
-
-//         for (let index = 0; index < hits.length; index++) {
-
-
-//             const item = new Item();
-//             item.reference = hits[index].itemNo
-//             await connection.manager.save(item);
-//         }
-
-//         res.send(201, 'ok')
-//     } catch (e) {
-//         console.log(e)
-//         res.send(500, 'Error creating item')
-//     }
-//     next()
-// }
-
-// const getItems = async (req, res, next) => {
-//     const items = await connection.manager.find(Item);
-//     res.send(200, items)
-//     next()
-// }
-
 const search = async (req, res, next) => {
-    const { type } = req.body
+    try {
+        let items
+        const template = await connection
+            .getRepository(Template)
+            .createQueryBuilder("template")
+            .where('template.name = :type', req.body)
+            .getOne()
+        if (!template) {
+            throw new Error('Template not found')
+        }
+
+        const itemRepository = connection.getRepository(Item)
+        items = await itemRepository
+            .find({ where: { template } })
+
+        const { includeRelated, type } = req.body
 
 
-    const itemRepository = connection.getRepository(Item)
-    const items = await itemRepository
-        .find()
+        const getRelated = async ({ reference }) => {
+            /**
+             * @todo: in${type} ? based on relations
+             */
+            const field = await connection.getRepository(Field)
+                .findOne({ where: { name: `in${type.charAt(0).toUpperCase()}${type.slice(1)}` } })
+            const fieldValue = await connection.getRepository(FieldValue)
+                .find({ where: { field, value: reference }, relations: ["item"] })
+            return fieldValue.map(({ item }) => item)
+        }
 
-    const formated = items.map(item => {
-        const fields = item.fieldValues.map(({ value, field }) => ({ name: field.name, value }))
-        const { fieldValues, ...sth } = item
-        return { ...sth, fields }
-    })
+        items = await itemRepository
+            .find({ where: { template } })
 
-    res.send(201, formated)
+        const formated = []
+        for (const item of items) {
+            const fields = item.fieldValues.map(({ value, field }) => ({ name: field.name, value }))
+            const { fieldValues, ...sth } = item
+
+            let related = []
+            if (includeRelated) {
+                related = await getRelated({ reference: item.reference })
+            }
+
+            formated.push({ ...sth, fields, related })
+        }
+
+        res.send(201, formated)
+    } catch ({ message }) {
+        res.send(500, message)
+    }
     next()
 }
 
